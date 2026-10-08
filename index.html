@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>地圖相片拼貼</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+  --mat:#2d4b45;
+  --mat-line:rgba(255,255,255,.08);
+  --panel:#f1f3f1;
+  --card:#ffffff;
+  --ink:#16201d;
+  --muted:#5d6b66;
+  --rule:#d6dbd8;
+  --red:#b4382c;
+  --field:#ffffff;
+  --shadow:rgba(10,24,21,.16);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --mat:#121c1a;
+    --mat-line:rgba(255,255,255,.05);
+    --panel:#161d1c;
+    --card:#1d2524;
+    --ink:#e7ebe9;
+    --muted:#95a39e;
+    --rule:#2e3937;
+    --red:#e0584a;
+    --field:#121817;
+    --shadow:rgba(0,0,0,.4);
+  }
+}
+:root[data-theme="dark"]{
+  --mat:#121c1a; --mat-line:rgba(255,255,255,.05); --panel:#161d1c; --card:#1d2524;
+  --ink:#e7ebe9; --muted:#95a39e; --rule:#2e3937; --red:#e0584a; --field:#121817;
+  --shadow:rgba(0,0,0,.4);
+}
+*,*::before,*::after{box-sizing:inherit}
+html,body{height:100%}
+body{
+  margin:0;background:var(--panel);color:var(--ink);
+  font-family:Archivo,"PingFang HK","PingFang TC","Noto Sans HK","Noto Sans TC","Microsoft JhengHei",sans-serif;
+  font-size:15px;line-height:1.55;-webkit-text-size-adjust:100%;
+}
+button,input,select{font:inherit;color:inherit}
+
+.shell{display:grid;grid-template-columns:375px 1fr;height:100%;min-height:0}
+
+/* ---------- panel ---------- */
+.panel{
+  background:var(--panel);border-right:1px solid var(--rule);
+  overflow-y:auto;overscroll-behavior:contain;min-height:0;
+  padding:22px 20px 60px;
+}
+.brand{display:flex;align-items:baseline;gap:9px;margin:0 0 4px}
+.brand h1{font-size:19px;font-weight:600;letter-spacing:-.01em;margin:0}
+.brand span{font-size:12px;color:var(--muted)}
+.lede{margin:0 0 20px;color:var(--muted);font-size:13px;max-width:34em}
+
+.step{border-top:1px solid var(--rule);padding:16px 0 4px}
+.step:first-of-type{border-top:0}
+.step>h2{
+  font-size:14px;font-weight:600;margin:0 0 12px;display:flex;align-items:center;gap:9px;
+}
+.num{
+  flex:0 0 auto;width:20px;height:20px;border-radius:50%;border:1px solid var(--ink);
+  font-size:11px;font-weight:500;display:grid;place-items:center;font-variant-numeric:tabular-nums;
+}
+.step[data-done="1"] .num{background:var(--ink);color:var(--panel)}
+.hint{font-size:12px;color:var(--muted);margin:8px 0 0}
+
+.drop{
+  border:1.5px dashed var(--rule);border-radius:10px;background:var(--card);
+  padding:18px 14px;text-align:center;cursor:pointer;display:block;transition:border-color .15s,background .15s;
+}
+.drop:hover,.drop.over{border-color:var(--red);background:var(--card)}
+.drop strong{display:block;font-weight:500;font-size:14px}
+.drop em{font-style:normal;font-size:12px;color:var(--muted)}
+.drop input{display:none}
+
+.row{display:flex;align-items:center;gap:10px;margin:12px 0}
+.row label{flex:1 1 auto;font-size:13px}
+.row .val{font-size:12px;color:var(--muted);font-variant-numeric:tabular-nums;min-width:44px;text-align:right}
+input[type=range]{flex:0 0 130px;accent-color:var(--red);height:20px;margin:0}
+input[type=number],select,input[type=text]{
+  background:var(--field);border:1px solid var(--rule);border-radius:7px;padding:6px 8px;
+  width:92px;font-variant-numeric:tabular-nums;
+}
+select{width:auto;min-width:112px}
+input[type=color]{width:34px;height:28px;padding:0;border:1px solid var(--rule);border-radius:7px;background:var(--field)}
+
+.btn{
+  border:1px solid var(--rule);background:var(--card);border-radius:8px;padding:8px 13px;
+  cursor:pointer;font-size:13px;transition:border-color .15s;
+}
+.btn:hover{border-color:var(--ink)}
+.btn.primary{background:var(--red);border-color:var(--red);color:#fff}
+.btn.primary:hover{filter:brightness(1.07)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btns{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 2px}
+
+.gallery{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(52px,1fr));gap:5px;
+  max-height:214px;overflow-y:auto;margin-top:12px;padding:2px;overscroll-behavior:contain;
+}
+.thumb{position:relative;aspect-ratio:1;border-radius:5px;overflow:hidden;cursor:pointer;background:var(--rule)}
+.thumb canvas{width:100%;height:100%;object-fit:cover;display:block}
+.thumb.star::after{
+  content:"";position:absolute;inset:0;border:2.5px solid var(--red);border-radius:5px;
+}
+.thumb.star::before{
+  content:"";position:absolute;right:3px;top:3px;width:8px;height:8px;border-radius:50%;
+  background:var(--red);box-shadow:0 0 0 2px var(--card);z-index:1;
+}
+.meter{height:3px;background:var(--rule);border-radius:2px;overflow:hidden;margin-top:10px}
+.meter i{display:block;height:100%;background:var(--red);width:0;transition:width .2s}
+
+/* ---------- stage ---------- */
+.stage{
+  position:relative;min-height:0;display:flex;flex-direction:column;
+  background:var(--mat);
+  background-image:linear-gradient(var(--mat-line) 1px,transparent 1px),linear-gradient(90deg,var(--mat-line) 1px,transparent 1px);
+  background-size:26px 26px;
+}
+.stagebar{
+  display:flex;align-items:center;gap:10px;padding:10px 16px;flex:0 0 auto;
+  color:#d9e4e1;font-size:12px;border-bottom:1px solid rgba(255,255,255,.08);
+}
+.stagebar .sp{flex:1}
+.stagebar button{
+  background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.16);color:#eef4f2;
+  border-radius:7px;padding:5px 10px;cursor:pointer;font-size:12px;
+}
+.stagebar button:hover{background:rgba(255,255,255,.16)}
+.stagebar button:disabled{opacity:.4;cursor:not-allowed}
+.viewport{flex:1 1 auto;min-height:0;display:grid;place-items:center;padding:18px;overflow:auto}
+#out{
+  max-width:100%;max-height:100%;display:block;
+  filter:drop-shadow(0 10px 26px rgba(0,0,0,.35));
+  background-image:
+    linear-gradient(45deg,rgba(255,255,255,.055) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.055) 75%),
+    linear-gradient(45deg,rgba(255,255,255,.055) 25%,transparent 25%,transparent 75%,rgba(255,255,255,.055) 75%);
+  background-size:18px 18px;background-position:0 0,9px 9px;
+}
+.empty{color:#b9c9c5;text-align:center;max-width:30ch;font-size:13px;line-height:1.7}
+.empty b{display:block;color:#eaf2f0;font-weight:500;font-size:15px;margin-bottom:6px}
+
+.toast{
+  position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));
+  background:var(--ink);color:var(--panel);padding:9px 16px;border-radius:999px;font-size:13px;
+  opacity:0;pointer-events:none;transition:opacity .22s;z-index:40;max-width:88vw;text-align:center;
+}
+.toast.on{opacity:1}
+.sub{margin:0 0 10px;font-size:12px;color:var(--muted)}
+.swatches{display:flex;gap:6px}
+.sw{width:26px;height:26px;border-radius:6px;border:1px solid var(--rule);cursor:pointer;padding:0}
+.sw[aria-pressed="true"]{outline:2px solid var(--red);outline-offset:1px}
+.sw.trans{
+  background-image:linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%),
+                   linear-gradient(45deg,#ccc 25%,transparent 25%,transparent 75%,#ccc 75%);
+  background-size:10px 10px;background-position:0 0,5px 5px;background-color:#fff;
+}
+:focus-visible{outline:2px solid var(--red);outline-offset:2px}
+
+@media (max-width:860px){
+  .shell{grid-template-columns:1fr;grid-template-rows:minmax(230px,42vh) 1fr;height:auto;min-height:100%}
+  .panel{border-right:0;border-top:1px solid var(--rule);overflow:visible;padding-bottom:40px}
+  .stage{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;min-height:230px}
+  body{height:auto}
+  html{height:auto}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="shell">
+
+  <aside class="panel">
+    <div class="brand"><h1>地圖相片拼貼</h1><span>map mosaic</span></div>
+    <p class="lede">上傳一張地圖輪廓，系統摳出形狀，把你的相片以大小不一的馬賽克隨機鋪滿裡面。</p>
+
+    <section class="step" id="step1">
+      <h2><i class="num">1</i>地圖底圖</h2>
+      <label class="drop" id="mapDrop">
+        <strong>選擇地圖圖片</strong>
+        <em>PNG / JPG / 已去背的 PNG 最準</em>
+        <input type="file" id="mapInput" accept="image/*">
+      </label>
+      <div class="row"><label for="tol">去背寬容度</label><input type="range" id="tol" min="0" max="140" value="42"><span class="val" id="tolV">42</span></div>
+      <div class="row"><label for="invert">反轉形狀（框線以外）</label><input type="checkbox" id="invert"></div>
+      <p class="hint" id="mapInfo">尚未上傳。白底的地圖線稿效果最好。</p>
+    </section>
+
+    <section class="step" id="step2">
+      <h2><i class="num">2</i>相片</h2>
+      <label class="drop" id="photoDrop">
+        <strong>批量加入相片</strong>
+        <em>可一次選 100–300 張</em>
+        <input type="file" id="photoInput" accept="image/*" multiple>
+      </label>
+      <div class="meter" id="meter" hidden><i></i></div>
+      <p class="hint" id="photoInfo">尚未加入相片。</p>
+      <div class="row"><label for="bigCount">重點相片（放大）</label><input type="number" id="bigCount" min="0" max="60" value="10"></div>
+      <div class="btns">
+        <button class="btn" id="pickRandom">隨機挑重點</button>
+        <button class="btn" id="clearStars">清除重點</button>
+        <button class="btn" id="clearPhotos">清空相片</button>
+      </div>
+      <p class="sub">點縮圖可自己指定哪幾張要放大。</p>
+      <div class="gallery" id="gallery"></div>
+    </section>
+
+    <section class="step" id="step3">
+      <h2><i class="num">3</i>排版</h2>
+      <div class="row"><label for="count">鋪幾張相片</label><input type="number" id="count" min="20" max="900" value="200"></div>
+      <div class="row"><label for="bigScale">重點放大倍數</label>
+        <select id="bigScale"><option value="2">2 × 2</option><option value="3" selected>3 × 3</option><option value="4">4 × 4</option></select></div>
+      <div class="row"><label for="midRatio">中型相片比例</label><input type="range" id="midRatio" min="0" max="45" value="18"><span class="val" id="midRatioV">18%</span></div>
+      <div class="row"><label for="gap">相片間距</label><input type="range" id="gap" min="0" max="26" value="6"><span class="val" id="gapV">6%</span></div>
+      <div class="row"><label for="radius">圓角</label><input type="range" id="radius" min="0" max="50" value="0"><span class="val" id="radiusV">0%</span></div>
+      <div class="row"><label for="edge">邊緣貼齊程度</label><input type="range" id="edge" min="5" max="90" value="35"><span class="val" id="edgeV">35%</span></div>
+      <div class="btns"><button class="btn" id="reroll">重新隨機排列</button></div>
+      <p class="hint" id="layoutInfo">—</p>
+    </section>
+
+    <section class="step" id="step4">
+      <h2><i class="num">4</i>外觀與匯出</h2>
+      <div class="row"><label>背景</label>
+        <div class="swatches">
+          <button class="sw trans" data-bg="transparent" aria-pressed="true" title="透明"></button>
+          <button class="sw" data-bg="#ffffff" style="background:#fff" aria-pressed="false" title="白"></button>
+          <button class="sw" data-bg="#12100f" style="background:#12100f" aria-pressed="false" title="黑"></button>
+          <input type="color" id="bgCustom" value="#f2efe6" title="自訂背景">
+        </div>
+      </div>
+      <div class="row"><label for="outline">外框</label>
+        <select id="outline">
+          <option value="none">無</option>
+          <option value="stroke" selected>描外框線</option>
+          <option value="map">疊原圖線稿</option>
+        </select></div>
+      <div class="row"><label for="strokeW">外框粗幼</label><input type="range" id="strokeW" min="1" max="14" value="4"><span class="val" id="strokeWV">4</span></div>
+      <div class="row"><label for="strokeC">外框顏色</label><input type="color" id="strokeC" value="#1b1b1b"></div>
+      <div class="row"><label for="outW">輸出寬度（px）</label><input type="number" id="outW" min="800" max="8000" step="100" value="3000"></div>
+      <div class="btns"><button class="btn primary" id="save" disabled>匯出 PNG</button></div>
+      <p class="hint">匯出會用原圖重新算一次，比畫面預覽更清晰。相片數量多時請等幾秒。</p>
+    </section>
+  </aside>
+
+  <main class="stage">
+    <div class="stagebar">
+      <span id="statusTxt">先上傳地圖</span>
+      <span class="sp"></span>
+      <button id="reroll2" disabled>重新隨機</button>
+      <button id="save2" disabled>匯出</button>
+    </div>
+    <div class="viewport" id="viewport">
+      <div class="empty" id="emptyNote"><b>這裡會顯示成品</b>上傳一張地圖輪廓就會先看到形狀，再加相片就會鋪滿。</div>
+      <canvas id="out" hidden></canvas>
+    </div>
+  </main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+
+/* ============ small utils ============ */
+const $ = s => document.querySelector(s);
+const clamp = (v,a,b)=>v<a?a:v>b?b:v;
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function shuffle(arr,rnd){for(let i=arr.length-1;i>0;i--){const j=Math.floor(rnd()*(i+1));[arr[i],arr[j]]=[arr[j],arr[i]]}return arr}
+let toastT;
+function toast(msg){const t=$("#toast");t.textContent=msg;t.classList.add("on");clearTimeout(toastT);toastT=setTimeout(()=>t.classList.remove("on"),2600)}
+const nextFrame = ()=>new Promise(r=>requestAnimationFrame(()=>r()));
+
+/* ============ state ============ */
+const S={
+  mapBitmap:null, mapName:"",
+  mask:null, mw:0, mh:0, sat:null,
+  photos:[],          // {id,file,thumb,star}
+  nextId:1,
+  layout:null,        // {cell,cols,rows,offX,offY,tiles:[{q,r,k}]}
+  assign:null,        // tileIndex -> photo index
+  seed:(Math.random()*1e9)|0,
+  bg:"transparent",
+  hiCache:new Map(),
+  rendering:false, dirty:false
+};
+
+/* ============ 1. map → mask ============ */
+async function fileToBitmap(file,maxSide){
+  let src;
+  try{ src = await createImageBitmap(file,{imageOrientation:"from-image"}); }
+  catch(e){
+    src = await new Promise((res,rej)=>{
+      const im=new Image(); im.onload=()=>res(im); im.onerror=()=>rej(new Error("decode"));
+      im.src=URL.createObjectURL(file);
+    });
+  }
+  if(!maxSide) return src;
+  const s=Math.min(1,maxSide/Math.max(src.width,src.height));
+  if(s>=1 && src.close) return src;
+  const c=document.createElement("canvas");
+  c.width=Math.max(1,Math.round(src.width*s)); c.height=Math.max(1,Math.round(src.height*s));
+  const x=c.getContext("2d"); x.imageSmoothingQuality="high";
+  x.drawImage(src,0,0,c.width,c.height);
+  if(src.close) src.close();
+  return await createImageBitmap(c);
+}
+
+function buildMask(bitmap,tol,invert){
+  const MAX=1100;
+  const s=Math.min(1,MAX/Math.max(bitmap.width,bitmap.height));
+  const w=Math.max(8,Math.round(bitmap.width*s)), h=Math.max(8,Math.round(bitmap.height*s));
+  const c=document.createElement("canvas"); c.width=w; c.height=h;
+  const x=c.getContext("2d",{willReadFrequently:true});
+  x.drawImage(bitmap,0,0,w,h);
+  const d=x.getImageData(0,0,w,h).data;
+  const n=w*h, mask=new Uint8Array(n);
+
+  // transparent pixels anywhere → use alpha as the shape
+  let transparent=0;
+  for(let i=0;i<n;i+=7) if(d[i*4+3]<160) transparent++;
+  if(transparent> (n/7)*0.02){
+    for(let i=0;i<n;i++) mask[i]= d[i*4+3]>120 ? 1:0;
+  }else{
+    // background colour = most common corner colour
+    const corners=[0,(w-1),(h-1)*w,(h-1)*w+w-1].map(i=>[d[i*4],d[i*4+1],d[i*4+2]]);
+    const bg=corners[0];
+    const out=new Uint8Array(n);
+    const stack=new Int32Array(n); let sp=0;
+    const push=i=>{ if(!out[i]){ out[i]=1; stack[sp++]=i; } };
+    const near=i=>{
+      const o=i*4;
+      return Math.abs(d[o]-bg[0])<=tol && Math.abs(d[o+1]-bg[1])<=tol && Math.abs(d[o+2]-bg[2])<=tol;
+    };
+    for(let q=0;q<w;q++){ if(near(q))push(q); const b=(h-1)*w+q; if(near(b))push(b); }
+    for(let r=0;r<h;r++){ const l=r*w; if(near(l))push(l); const rt=r*w+w-1; if(near(rt))push(rt); }
+    while(sp>0){
+      const i=stack[--sp], yy=(i/w)|0, xx=i-yy*w;
+      if(xx>0){const j=i-1; if(!out[j]&&near(j))push(j);}
+      if(xx<w-1){const j=i+1; if(!out[j]&&near(j))push(j);}
+      if(yy>0){const j=i-w; if(!out[j]&&near(j))push(j);}
+      if(yy<h-1){const j=i+w; if(!out[j]&&near(j))push(j);}
+    }
+    for(let i=0;i<n;i++) mask[i]=out[i]?0:1;
+  }
+  if(invert) for(let i=0;i<n;i++) mask[i]=mask[i]?0:1;
+  return {mask,w,h};
+}
+
+function buildSAT(mask,w,h){
+  const sat=new Int32Array((w+1)*(h+1));
+  for(let y=0;y<h;y++){
+    let row=0;
+    for(let x=0;x<w;x++){
+      row+=mask[y*w+x];
+      sat[(y+1)*(w+1)+x+1]=sat[y*(w+1)+x+1]+row;
+    }
+  }
+  return sat;
+}
+function cov(x,y,c){
+  const w=S.mw,h=S.mh,sat=S.sat;
+  const x0=clamp(Math.round(x),0,w), y0=clamp(Math.round(y),0,h);
+  const x1=clamp(Math.round(x+c),0,w), y1=clamp(Math.round(y+c),0,h);
+  const aw=x1-x0, ah=y1-y0;
+  if(aw<=0||ah<=0) return 0;
+  const W=w+1;
+  const s=sat[y1*W+x1]-sat[y0*W+x1]-sat[y1*W+x0]+sat[y0*W+x0];
+  return s/(aw*ah);
+}
+
+/* ============ 2. layout ============ */
+function opts(){
+  return {
+    count: clamp(parseInt($("#count").value)||200,20,900),
+    big: clamp(parseInt($("#bigCount").value)||0,0,60),
+    bigK: parseInt($("#bigScale").value),
+    midRatio: parseInt($("#midRatio").value)/100,
+    gap: parseInt($("#gap").value)/100,
+    radius: parseInt($("#radius").value)/100,
+    edge: parseInt($("#edge").value)/100,
+    outline: $("#outline").value,
+    strokeW: parseInt($("#strokeW").value),
+    strokeC: $("#strokeC").value,
+    outW: clamp(parseInt($("#outW").value)||3000,800,8000)
+  };
+}
+
+function countCells(c,edge,cap){
+  const cols=Math.floor(S.mw/c), rows=Math.floor(S.mh/c);
+  if(cols<1||rows<1) return 0;
+  const offX=(S.mw-cols*c)/2, offY=(S.mh-rows*c)/2;
+  let n=0;
+  for(let r=0;r<rows;r++){
+    for(let q=0;q<cols;q++) if(cov(offX+q*c,offY+r*c,c)>=edge) n++;
+    if(cap && n>cap) return n;
+  }
+  return n;
+}
+
+function place(cell,o,rnd){
+  const cols=Math.floor(S.mw/cell), rows=Math.floor(S.mh/cell);
+  const offX=(S.mw-cols*cell)/2, offY=(S.mh-rows*cell)/2;
+  const st=new Int8Array(cols*rows);      // 0 free, 2 outside, 1 used
+  const strong=new Uint8Array(cols*rows); // well inside
+  for(let r=0;r<rows;r++)for(let q=0;q<cols;q++){
+    const v=cov(offX+q*cell,offY+r*cell,cell);
+    const i=r*cols+q;
+    if(v<o.edge) st[i]=2; else if(v>=0.985) strong[i]=1;
+  }
+  const tiles=[];
+  function fits(q,r,k,needStrong){
+    if(q+k>cols||r+k>rows) return false;
+    for(let dy=0;dy<k;dy++)for(let dx=0;dx<k;dx++){
+      const i=(r+dy)*cols+q+dx;
+      if(st[i]!==0) return false;
+      if(needStrong && !strong[i]) return false;
+    }
+    return true;
+  }
+  function take(q,r,k){
+    for(let dy=0;dy<k;dy++)for(let dx=0;dx<k;dx++) st[(r+dy)*cols+q+dx]=1;
+    tiles.push({q,r,k});
+  }
+  function scatter(k,want,needStrong,minDist){
+    if(want<=0) return 0;
+    const cand=[];
+    for(let r=0;r<=rows-k;r++)for(let q=0;q<=cols-k;q++) if(fits(q,r,k,needStrong)) cand.push(r*cols+q);
+    if(!cand.length) return 0;
+    shuffle(cand,rnd);
+    const put=[]; let done=0;
+    for(let pass=0;pass<2 && done<want;pass++){
+      const d=pass===0?minDist:0;
+      for(const ci of cand){
+        if(done>=want) break;
+        const r=(ci/cols)|0, q=ci-r*cols;
+        if(!fits(q,r,k,needStrong)) continue;
+        if(d>0 && put.some(p=>Math.hypot(p.q-q,p.r-r)<d)) continue;
+        take(q,r,k); put.push({q,r}); done++;
+      }
+    }
+    return done;
+  }
+
+  // large tiles — spread out, well inside the shape
+  let placedBig=0;
+  const inside=st.reduce((a,v)=>a+(v===0?1:0),0);
+  const minDist=Math.sqrt(inside/Math.max(1,o.big))*0.72;
+  if(o.big>0){
+    placedBig=scatter(o.bigK,o.big,true,minDist);
+    if(placedBig<o.big) placedBig+=scatter(o.bigK,o.big-placedBig,false,minDist*0.5);
+  }
+  const bigCount=tiles.length;
+
+  // medium tiles
+  const remainingCells=st.reduce((a,v)=>a+(v===0?1:0),0);
+  if(o.bigK!==2) scatter(2,Math.round(remainingCells*o.midRatio/(1+3*o.midRatio)),false,0);
+
+  // fill the rest
+  const rest=[];
+  for(let r=0;r<rows;r++)for(let q=0;q<cols;q++) if(st[r*cols+q]===0) rest.push(r*cols+q);
+  shuffle(rest,rnd);
+  for(const ci of rest){ const r=(ci/cols)|0; take(ci-r*cols,r,1); }
+
+  return {cell,cols,rows,offX,offY,tiles,bigCount,placedBig};
+}
+
+function solve(){
+  if(!S.mask) return;
+  const o=opts();
+  const rnd=mulberry32(S.seed);
+  const big=Math.min(o.big,o.count);
+  const rest=Math.max(0,o.count-big);
+  const mid=o.bigK===2?0:Math.round(rest*o.midRatio);
+  let targetCells=big*o.bigK*o.bigK + mid*4 + (rest-mid);
+  const area=Math.max(1,S.sat[S.mh*(S.mw+1)+S.mw]);
+
+  let best=null;
+  for(let iter=0;iter<6;iter++){
+    // bisect cell size so the shape holds ~targetCells cells
+    const ideal=Math.sqrt(area/Math.max(4,targetCells));
+    let lo=Math.max(1.2,ideal*0.4), hi=Math.max(2.4,ideal*2.6);
+    for(let i=0;i<20;i++){
+      const mid2=(lo+hi)/2;
+      if(countCells(mid2,o.edge,targetCells*3)>targetCells) lo=mid2; else hi=mid2;
+    }
+    const cell=Math.max(1.2,(lo+hi)/2);
+    const L=place(cell,{...o,big},rnd);
+    best=L;
+    const got=L.tiles.length;
+    if(got===0) break;
+    if(Math.abs(got-o.count)/o.count<0.04) break;
+    targetCells=Math.max(10,Math.round(targetCells*(o.count/got)));
+  }
+  S.layout=best;
+  assignPhotos();
+  const n=best?best.tiles.length:0;
+  $("#layoutInfo").textContent = n
+    ? `共 ${n} 格 · 其中 ${best.placedBig} 格放大 · 每格約 ${(best.cell/S.mw*100).toFixed(1)}% 寬`
+    : "形狀太細或門檻太高，試下調低「邊緣貼齊程度」。";
+}
+
+function assignPhotos(){
+  if(!S.layout) return;
+  const rnd=mulberry32(S.seed^0x9e3779b9);
+  const tiles=S.layout.tiles;
+  const a=new Array(tiles.length).fill(-1);
+  S.assign=a;
+  if(!S.photos.length) return;
+
+  const bigK=parseInt($("#bigScale").value);
+  const bigIdx=[], smallIdx=[];
+  tiles.forEach((t,i)=>{ (t.k>=bigK ? bigIdx : smallIdx).push(i); });
+  shuffle(bigIdx,rnd); shuffle(smallIdx,rnd);
+
+  const stars=shuffle(S.photos.map((p,i)=>p.star?i:-1).filter(i=>i>=0),rnd);
+  const used=new Set();
+  let si=0;
+  for(const ti of bigIdx){
+    const pick = stars.length ? stars[si%stars.length] : si%S.photos.length;
+    a[ti]=pick; used.add(pick); si++;
+  }
+  let pool=S.photos.map((_,i)=>i).filter(i=>!used.has(i));
+  if(!pool.length) pool=S.photos.map((_,i)=>i);
+  shuffle(pool,rnd);
+  let pi=0;
+  for(const ti of smallIdx) a[ti]=pool[pi++%pool.length];
+}
+
+/* ============ 3. render ============ */
+function maskCanvas(){
+  const c=document.createElement("canvas"); c.width=S.mw; c.height=S.mh;
+  const x=c.getContext("2d");
+  const img=x.createImageData(S.mw,S.mh), d=img.data;
+  for(let i=0;i<S.mask.length;i++){ const o=i*4; d[o]=0;d[o+1]=0;d[o+2]=0;d[o+3]=S.mask[i]?255:0; }
+  x.putImageData(img,0,0);
+  return c;
+}
+function edgeCanvas(widthPx,color){
+  const w=S.mw,h=S.mh,m=S.mask;
+  let e=new Uint8Array(w*h);
+  for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const i=y*w+x; if(!m[i]) continue;
+    if(x===0||y===0||x===w-1||y===h-1||!m[i-1]||!m[i+1]||!m[i-w]||!m[i+w]) e[i]=1;
+  }
+  const r=Math.max(0,Math.round(widthPx/2)-1);
+  for(let p=0;p<r;p++){
+    const nx=new Uint8Array(e);
+    for(let y=1;y<h-1;y++)for(let x=1;x<w-1;x++){
+      const i=y*w+x; if(e[i]) continue;
+      if(e[i-1]||e[i+1]||e[i-w]||e[i+w]) nx[i]=1;
+    }
+    e=nx;
+  }
+  const c=document.createElement("canvas"); c.width=w; c.height=h;
+  const x2=c.getContext("2d");
+  const img=x2.createImageData(w,h), d=img.data;
+  for(let i=0;i<e.length;i++) d[i*4+3]=e[i]?255:0;
+  x2.putImageData(img,0,0);
+  x2.globalCompositeOperation="source-in";
+  x2.fillStyle=color; x2.fillRect(0,0,w,h);
+  return c;
+}
+
+function drawCover(ctx,img,x,y,w,h,rad){
+  const ar=img.width/img.height, tr=w/h;
+  let sx=0,sy=0,sw=img.width,sh=img.height;
+  if(ar>tr){ sw=img.height*tr; sx=(img.width-sw)/2; }
+  else { sh=img.width/tr; sy=(img.height-sh)/2; }
+  if(rad>0){
+    ctx.save(); ctx.beginPath();
+    const r=Math.min(rad,Math.min(w,h)/2);
+    if(ctx.roundRect) ctx.roundRect(x,y,w,h,r); else ctx.rect(x,y,w,h);
+    ctx.clip(); ctx.drawImage(img,sx,sy,sw,sh,x,y,w,h); ctx.restore();
+  }else{
+    ctx.drawImage(img,sx,sy,sw,sh,x,y,w,h);
+  }
+}
+
+async function hiRes(photo,needPx){
+  const key=photo.id+"@"+(needPx>700?1200:700);
+  if(S.hiCache.has(key)) return S.hiCache.get(key);
+  const bmp=await fileToBitmap(photo.file,needPx>700?1200:700);
+  if(S.hiCache.size>40) S.hiCache.clear();
+  S.hiCache.set(key,bmp);
+  return bmp;
+}
+
+async function renderTo(canvas,targetW,forExport){
+  const o=opts();
+  const scale=targetW/S.mw;
+  const W=Math.round(S.mw*scale), H=Math.round(S.mh*scale);
+  canvas.width=W; canvas.height=H;
+  const ctx=canvas.getContext("2d");
+  ctx.imageSmoothingQuality="high";
+  ctx.clearRect(0,0,W,H);
+
+  const L=S.layout;
+  if(L && L.tiles.length){
+    const cell=L.cell*scale, offX=L.offX*scale, offY=L.offY*scale;
+    const g=cell*o.gap/2;
+    for(let i=0;i<L.tiles.length;i++){
+      const t=L.tiles[i];
+      const x=offX+t.q*cell+g, y=offY+t.r*cell+g;
+      const s=t.k*cell-g*2;
+      const pi=S.assign?S.assign[i]:-1;
+      const p=pi>=0?S.photos[pi]:null;
+      let img=p?p.thumb:null;
+      if(p && forExport && s>p.thumb.width*1.15){
+        try{ img=await hiRes(p,s); }catch(e){}
+      }
+      if(img) drawCover(ctx,img,x,y,s,s,s*o.radius);
+      else{
+        ctx.fillStyle = t.k>1 ? "rgba(180,56,44,.5)" : "rgba(120,140,135,.45)";
+        if(o.radius>0&&ctx.roundRect){ctx.beginPath();ctx.roundRect(x,y,s,s,s*o.radius);ctx.fill();}
+        else ctx.fillRect(x,y,s,s);
+      }
+      if(forExport && i%40===39) await nextFrame();
+    }
+  }else if(S.mask){
+    ctx.fillStyle="rgba(140,160,155,.5)"; ctx.fillRect(0,0,W,H);
+  }
+
+  // original line art, multiplied in before clipping
+  if(o.outline==="map" && S.mapBitmap){
+    ctx.globalCompositeOperation="multiply";
+    ctx.drawImage(S.mapBitmap,0,0,W,H);
+    ctx.globalCompositeOperation="source-over";
+  }
+
+  // clip to the map shape
+  if(S.mask){
+    ctx.globalCompositeOperation="destination-in";
+    ctx.drawImage(maskCanvas(),0,0,W,H);
+    ctx.globalCompositeOperation="source-over";
+  }
+
+  // background colour behind everything
+  if(S.bg!=="transparent"){
+    ctx.globalCompositeOperation="destination-over";
+    ctx.fillStyle=S.bg; ctx.fillRect(0,0,W,H);
+    ctx.globalCompositeOperation="source-over";
+  }
+
+  if(o.outline==="stroke" && S.mask){
+    const lw=Math.max(1,o.strokeW*(S.mw/900));
+    ctx.drawImage(edgeCanvas(lw,o.strokeC),0,0,W,H);
+  }
+}
+
+let renderToken=0;
+async function preview(){
+  if(!S.mask){ return; }
+  const my=++renderToken;
+  const vp=$("#viewport");
+  const targetW=Math.min(1500,Math.max(700,Math.round((vp.clientWidth-40)*(window.devicePixelRatio>1?1.6:1.2))));
+  await renderTo($("#out"),targetW,false);
+  if(my!==renderToken) return;
+  $("#out").hidden=false; $("#emptyNote").hidden=true;
+}
+
+function refresh(){ solve(); preview(); updateUI(); }
+
+/* ============ 4. photos ============ */
+async function addPhotos(files){
+  const list=[...files].filter(f=>f.type.startsWith("image/"));
+  if(!list.length) return;
+  const meter=$("#meter"); meter.hidden=false;
+  const bar=meter.querySelector("i");
+  for(let i=0;i<list.length;i++){
+    try{
+      const thumb=await fileToBitmap(list[i],380);
+      S.photos.push({id:S.nextId++,file:list[i],thumb,star:false});
+    }catch(e){}
+    bar.style.width=((i+1)/list.length*100)+"%";
+    if(i%4===3) await nextFrame();
+  }
+  setTimeout(()=>{meter.hidden=true;bar.style.width="0"},400);
+  if(S.photos.length && !$("#count").dataset.touched) $("#count").value=clamp(S.photos.length,20,900);
+  autoStars();
+  drawGallery();
+  refresh();
+}
+
+function autoStars(){
+  const want=clamp(parseInt($("#bigCount").value)||0,0,60);
+  const current=S.photos.filter(p=>p.star).length;
+  if(current>=want) return;
+  const rnd=mulberry32(S.seed^77);
+  const free=shuffle(S.photos.filter(p=>!p.star),rnd);
+  for(let i=0;i<want-current && i<free.length;i++) free[i].star=true;
+}
+
+function drawGallery(){
+  const g=$("#gallery"); g.textContent="";
+  const frag=document.createDocumentFragment();
+  S.photos.forEach((p,i)=>{
+    const d=document.createElement("div");
+    d.className="thumb"+(p.star?" star":"");
+    d.tabIndex=0; d.setAttribute("role","button");
+    d.setAttribute("aria-label","相片 "+(i+1)+(p.star?"（重點）":""));
+    const c=document.createElement("canvas"); c.width=56; c.height=56;
+    const x=c.getContext("2d");
+    drawCover(x,p.thumb,0,0,56,56,0);
+    d.appendChild(c);
+    const toggle=()=>{p.star=!p.star;d.classList.toggle("star",p.star);d.setAttribute("aria-label","相片 "+(i+1)+(p.star?"（重點）":""));assignPhotos();preview();updateUI();};
+    d.addEventListener("click",toggle);
+    d.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();toggle()}});
+    frag.appendChild(d);
+  });
+  g.appendChild(frag);
+}
+
+function updateUI(){
+  const n=S.photos.length, st=S.photos.filter(p=>p.star).length;
+  $("#photoInfo").textContent = n ? `已加入 ${n} 張，其中 ${st} 張設為重點。` : "尚未加入相片。";
+  $("#step1").dataset.done = S.mask?"1":"0";
+  $("#step2").dataset.done = n?"1":"0";
+  $("#step3").dataset.done = (S.layout&&S.layout.tiles.length)?"1":"0";
+  const ready=!!(S.mask);
+  $("#save").disabled=!ready; $("#save2").disabled=!ready;
+  $("#reroll2").disabled=!ready;
+  $("#statusTxt").textContent = !S.mask ? "先上傳地圖"
+    : (n? `${n} 張相片 · ${S.layout?S.layout.tiles.length:0} 格` : "已摳出形狀，可以加相片了");
+}
+
+/* ============ 5. wiring ============ */
+function hookDrop(zone,input,handler){
+  zone.addEventListener("dragover",e=>{e.preventDefault();zone.classList.add("over")});
+  zone.addEventListener("dragleave",()=>zone.classList.remove("over"));
+  zone.addEventListener("drop",e=>{e.preventDefault();zone.classList.remove("over");if(e.dataTransfer.files.length)handler(e.dataTransfer.files)});
+  input.addEventListener("change",()=>{if(input.files.length)handler(input.files);input.value=""});
+}
+
+async function loadMap(files){
+  try{
+    const f=files[0];
+    S.mapBitmap=await fileToBitmap(f,1400);
+    S.mapName=f.name;
+    rebuildMask();
+    $("#mapInfo").textContent=`${f.name} · ${S.mapBitmap.width}×${S.mapBitmap.height}`;
+  }catch(e){ toast("這張圖讀不到，換一張試試"); }
+}
+function rebuildMask(){
+  if(!S.mapBitmap) return;
+  const {mask,w,h}=buildMask(S.mapBitmap,parseInt($("#tol").value),$("#invert").checked);
+  const filled=mask.reduce((a,v)=>a+v,0);
+  if(filled<w*h*0.004){ toast("摳不出形狀，試下調寬容度或反轉"); }
+  S.mask=mask; S.mw=w; S.mh=h; S.sat=buildSAT(mask,w,h);
+  refresh();
+}
+
+hookDrop($("#mapDrop"),$("#mapInput"),loadMap);
+hookDrop($("#photoDrop"),$("#photoInput"),addPhotos);
+
+// sliders that only change the mask
+let maskT;
+["#tol","#invert"].forEach(sel=>$(sel).addEventListener("input",()=>{
+  if(sel==="#tol") $("#tolV").textContent=$("#tol").value;
+  clearTimeout(maskT); maskT=setTimeout(rebuildMask,160);
+}));
+
+// layout controls
+const layoutCtl=["#count","#bigCount","#bigScale","#midRatio","#edge"];
+let layT;
+layoutCtl.forEach(sel=>$(sel).addEventListener("input",()=>{
+  if(sel==="#count") $("#count").dataset.touched="1";
+  if(sel==="#midRatio") $("#midRatioV").textContent=$("#midRatio").value+"%";
+  if(sel==="#edge") $("#edgeV").textContent=$("#edge").value+"%";
+  if(sel==="#bigCount"){ autoStars(); drawGallery(); }
+  clearTimeout(layT); layT=setTimeout(refresh,180);
+}));
+
+// look-only controls (no re-solve)
+let lookT;
+["#gap","#radius","#outline","#strokeW","#strokeC"].forEach(sel=>$(sel).addEventListener("input",()=>{
+  if(sel==="#gap") $("#gapV").textContent=$("#gap").value+"%";
+  if(sel==="#radius") $("#radiusV").textContent=$("#radius").value+"%";
+  if(sel==="#strokeW") $("#strokeWV").textContent=$("#strokeW").value;
+  clearTimeout(lookT); lookT=setTimeout(preview,120);
+}));
+
+document.querySelectorAll(".sw[data-bg]").forEach(b=>b.addEventListener("click",()=>{
+  S.bg=b.dataset.bg;
+  document.querySelectorAll(".sw[data-bg]").forEach(x=>x.setAttribute("aria-pressed",x===b?"true":"false"));
+  preview();
+}));
+$("#bgCustom").addEventListener("input",e=>{
+  S.bg=e.target.value;
+  document.querySelectorAll(".sw[data-bg]").forEach(x=>x.setAttribute("aria-pressed","false"));
+  preview();
+});
+
+function reroll(){ S.seed=(Math.random()*1e9)|0; refresh(); }
+$("#reroll").addEventListener("click",reroll);
+$("#reroll2").addEventListener("click",reroll);
+
+$("#pickRandom").addEventListener("click",()=>{
+  const want=clamp(parseInt($("#bigCount").value)||0,0,60);
+  S.photos.forEach(p=>p.star=false);
+  const rnd=mulberry32((Math.random()*1e9)|0);
+  shuffle(S.photos.slice(),rnd).slice(0,want).forEach(p=>p.star=true);
+  drawGallery(); assignPhotos(); preview(); updateUI();
+});
+$("#clearStars").addEventListener("click",()=>{
+  S.photos.forEach(p=>p.star=false); drawGallery(); assignPhotos(); preview(); updateUI();
+});
+$("#clearPhotos").addEventListener("click",()=>{
+  S.photos.forEach(p=>p.thumb.close&&p.thumb.close());
+  S.photos=[]; S.hiCache.clear(); drawGallery(); refresh();
+});
+
+/* export */
+let dl=null, dlAsked=false;
+async function save(){
+  if(!S.mask) return;
+  const btns=[$("#save"),$("#save2")];
+  btns.forEach(b=>{b.disabled=true});
+  const old=$("#save").textContent; $("#save").textContent="製作中…";
+  try{
+    const o=opts();
+    const c=document.createElement("canvas");
+    await renderTo(c,o.outW,true);
+    const blob=await new Promise(r=>c.toBlob(r,"image/png"));
+    const name="map-mosaic-"+new Date().toISOString().slice(0,10)+".png";
+    if(!dlAsked){ dlAsked=true; try{ dl=await window.claude?.use?.("downloads"); }catch(e){ dl=null; } }
+    if(dl){
+      await dl.save({filename:name,data:blob});
+      toast("已匯出");
+    }else{
+      const url=URL.createObjectURL(blob);
+      const a=document.createElement("a"); a.href=url; a.download=name; a.click();
+      setTimeout(()=>URL.revokeObjectURL(url),4000);
+      toast("已匯出");
+    }
+  }catch(e){
+    if(e&&e.code==="declined") toast("已取消");
+    else toast("匯出失敗，試下調細輸出寬度");
+  }finally{
+    $("#save").textContent=old;
+    btns.forEach(b=>{b.disabled=false});
+  }
+}
+$("#save").addEventListener("click",save);
+$("#save2").addEventListener("click",save);
+
+window.addEventListener("resize",()=>{clearTimeout(lookT);lookT=setTimeout(preview,250)});
+updateUI();
+})();
+</script>
+</body>
+</html>
